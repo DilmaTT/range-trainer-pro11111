@@ -2,8 +2,8 @@ import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
-import { PokerMatrix } from "./PokerMatrix";
-import { Plus, Palette, Trash2, Download, Upload } from "lucide-react";
+import { PokerMatrix, getCombinations, TOTAL_POKER_COMBINATIONS } from "./PokerMatrix"; // Import helpers
+import { Plus, Palette, Trash2 } from "lucide-react"; // Removed Download, Upload
 import { cn } from "@/lib/utils";
 import { useRangeContext } from "@/contexts/RangeContext";
 
@@ -36,12 +36,12 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
   const [selectedRange, setSelectedRange] = useState<string>(folders[0]?.ranges[0]?.id || '');
   const [activeAction, setActiveAction] = useState(actionButtons[0]?.id || 'raise');
 
-  const getCurrentRange = () => {
+  const getCurrentRangeAndFolder = () => {
     for (const folder of folders) {
       const range = folder.ranges.find(r => r.id === selectedRange);
-      if (range) return range;
+      if (range) return { folder, range };
     }
-    return folders[0]?.ranges[0];
+    return { folder: folders[0], range: folders[0]?.ranges[0] };
   };
 
   const updateRangeName = (rangeId: string, newName: string) => {
@@ -126,44 +126,11 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
     }
   };
 
-  const exportRanges = () => {
-    const data = {
-      folders,
-      actionButtons,
-      exportDate: new Date().toISOString()
-    };
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'poker-ranges.json';
-    a.click();
-    URL.revokeObjectURL(url);
-  };
-
-  const importRanges = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const data = JSON.parse(e.target?.result as string);
-        if (data.folders && data.actionButtons) {
-          setFolders(data.folders);
-          setActionButtons(data.actionButtons);
-          setActiveAction(data.actionButtons[0]?.id || actionButtons[0]?.id);
-        }
-      } catch (error) {
-        console.error('Error importing ranges:', error);
-      }
-    };
-    reader.readAsText(file);
-    event.target.value = '';
-  };
+  // Removed exportRanges function
+  // Removed importRanges function
 
   const onHandSelect = (hand: string) => {
-    const currentRange = getCurrentRange();
+    const { range: currentRange } = getCurrentRangeAndFolder();
     if (!currentRange) return;
 
     const newHands = { ...currentRange.hands };
@@ -181,7 +148,23 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
     })));
   };
 
-  const currentRange = getCurrentRange();
+  const { folder: currentFolder, range: currentRange } = getCurrentRangeAndFolder();
+
+  const getSelectedCombinationsCount = () => {
+    if (!currentRange) return 0;
+    let count = 0;
+    Object.entries(currentRange.hands).forEach(([hand, action]) => {
+      if (action && action !== 'fold') {
+        count += getCombinations(hand);
+      }
+    });
+    return count;
+  };
+
+  const getSelectedCombinationsPercentage = () => {
+    const selectedCount = getSelectedCombinationsCount();
+    return TOTAL_POKER_COMBINATIONS > 0 ? Math.round((selectedCount / TOTAL_POKER_COMBINATIONS) * 100) : 0;
+  };
 
   return (
     <div className={cn(
@@ -191,101 +174,13 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
       {/* Sidebar */}
       <div className={cn(
         "bg-card p-4 space-y-4",
-        isMobileMode ? "order-2" : "w-80 border-r"
+        isMobileMode ? "order-2 flex flex-col" : "w-80 border-r" // Added flex flex-col for mobile ordering
       )}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold">Добавить папку</h2>
-          <Button size="sm" onClick={addFolder} variant="outline">
-            <Plus className="h-4 w-4" />
-          </Button>
-        </div>
-        
-        <div className={cn(
-          "space-y-2 overflow-y-auto",
-          isMobileMode ? "max-h-64" : "max-h-96"
-        )}>
-          {folders.map((folder) => (
-            <Card key={folder.id} className="p-3">
-              <div className="flex items-center justify-between mb-2">
-                <Input
-                  value={folder.name}
-                  onChange={(e) => updateFolderName(folder.id, e.target.value)}
-                  className={cn(
-                    "h-6 text-sm border-none bg-transparent p-0 focus:bg-background",
-                    isMobileMode && "max-w-[50vw]"
-                  )}
-                  maxLength={isMobileMode ? 12 : 8}
-                />
-                <Button 
-                  size="sm" 
-                  variant="ghost" 
-                  onClick={() => addRange(folder.id)}
-                >
-                  <Plus className="h-3 w-3" />
-                </Button>
-              </div>
-              
-              <div className="space-y-1 ml-4">
-                {folder.ranges.map((range) => (
-                    <div
-                      key={range.id}
-                      className={cn(
-                        "flex items-center justify-between p-2 rounded cursor-pointer",
-                        selectedRange === range.id ? "bg-primary/10" : "hover:bg-muted/50"
-                      )}
-                      onClick={() => setSelectedRange(range.id)}
-                    >
-                      <span
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingButton(range.id);
-                        }}
-                        className={cn(
-                          "cursor-text text-xs flex-1 truncate",
-                          isMobileMode && "max-w-[50vw]"
-                        )}
-                      >
-                        {editingButton === range.id ? (
-                          <Input
-                            value={range.name}
-                            onChange={(e) => updateRangeName(range.id, e.target.value)}
-                            onBlur={() => setEditingButton(null)}
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter') {
-                                setEditingButton(null);
-                              }
-                            }}
-                            className="h-5 text-xs border-none bg-transparent p-0 focus:bg-background"
-                            maxLength={isMobileMode ? 12 : 8}
-                            autoFocus
-                            onClick={(e) => e.stopPropagation()}
-                          />
-                        ) : (
-                          range.name
-                        )}
-                      </span>
-                      {folder.ranges.length > 1 && (
-                        <Button
-                          size="sm"
-                          variant="ghost"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteRange(range.id);
-                          }}
-                          className="h-6 w-6 p-0 ml-2"
-                        >
-                          <Trash2 className="h-3 w-3" />
-                        </Button>
-                      )}
-                    </div>
-                ))}
-              </div>
-            </Card>
-          ))}
-        </div>
-
         {/* Action Buttons */}
-        <div className="space-y-3 border-t pt-4">
+        <div className={cn(
+          "space-y-3 border-t pt-4",
+          isMobileMode ? "order-1" : "" // Order 1 for mobile
+        )}>
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium">Действия</h3>
             <Button size="sm" variant="outline" onClick={addActionButton}>
@@ -353,26 +248,103 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
             ))}
           </div>
 
-          {/* Import/Export buttons */}
-          <div className="flex gap-2 pt-2 border-t">
-            <Button size="sm" variant="outline" onClick={exportRanges} className="flex-1">
-              <Download className="h-3 w-3 mr-1" />
-              Экспорт
+          {/* Removed Import/Export buttons */}
+        </div>
+
+        {/* Folder section */}
+        <div className={cn(
+          "space-y-4", // Keep original spacing for consistency
+          isMobileMode ? "order-2" : "" // Order 2 for mobile
+        )}>
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold">Добавить папку</h2>
+            <Button size="sm" onClick={addFolder} variant="outline">
+              <Plus className="h-4 w-4" />
             </Button>
-            <label className="flex-1">
-              <input
-                type="file"
-                accept=".json"
-                onChange={importRanges}
-                className="hidden"
-              />
-              <Button size="sm" variant="outline" className="w-full" asChild>
-                <span>
-                  <Upload className="h-3 w-3 mr-1" />
-                  Импорт
-                </span>
-              </Button>
-            </label>
+          </div>
+          
+          <div className={cn(
+            "space-y-2 overflow-y-auto",
+            isMobileMode ? "max-h-64" : "max-h-96"
+          )}>
+            {folders.map((folder) => (
+              <Card key={folder.id} className="p-3">
+                <div className="flex items-center justify-between mb-2">
+                  <Input
+                    value={folder.name}
+                    onChange={(e) => updateFolderName(folder.id, e.target.value)}
+                    className={cn(
+                      "h-6 text-sm border-none bg-transparent p-0 focus:bg-background",
+                      isMobileMode && "max-w-[50vw]"
+                    )}
+                    maxLength={isMobileMode ? 12 : 8}
+                  />
+                  <Button 
+                    size="sm" 
+                    variant="ghost" 
+                    onClick={() => addRange(folder.id)}
+                  >
+                    <Plus className="h-3 w-3" />
+                  </Button>
+                </div>
+                
+                <div className="space-y-1 ml-4">
+                  {folder.ranges.map((range) => (
+                      <div
+                        key={range.id}
+                        className={cn(
+                          "flex items-center justify-between p-2 rounded cursor-pointer",
+                          selectedRange === range.id ? "bg-primary/10" : "hover:bg-muted/50"
+                        )}
+                        onClick={() => setSelectedRange(range.id)}
+                      >
+                        <span
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingButton(range.id);
+                          }}
+                          className={cn(
+                            "cursor-text text-xs flex-1 truncate",
+                            isMobileMode && "max-w-[50vw]"
+                          )}
+                        >
+                          {editingButton === range.id ? (
+                            <Input
+                              value={range.name}
+                              onChange={(e) => updateRangeName(range.id, e.target.value)}
+                              onBlur={() => setEditingButton(null)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  setEditingButton(null);
+                                }
+                              }}
+                              className="h-5 text-xs border-none bg-transparent p-0 focus:bg-background"
+                              maxLength={isMobileMode ? 12 : 8}
+                              autoFocus
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                          ) : (
+                            range.name
+                          )}
+                        </span>
+                        {folder.ranges.length > 1 && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              deleteRange(range.id);
+                            }}
+                            className="h-6 w-6 p-0 ml-2"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        )}
+                      </div>
+                  ))}
+                </div>
+              </Card>
+            ))}
           </div>
         </div>
       </div>
@@ -386,19 +358,27 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
           "mx-auto space-y-6",
           isMobileMode ? "max-w-full" : "max-w-4xl"
         )}>
-          <div className="text-center">
-            <h1 className={cn(
-              "font-bold mb-2",
-              isMobileMode ? "text-xl" : "text-2xl"
-            )}>
-              {currentRange ? currentRange.name : 'Выберите ренж'}
-            </h1>
-            <p className={cn(
-              "text-muted-foreground",
-              isMobileMode && "text-sm"
-            )}>
-              Выберите действие и нажмите на комбинации для редактирования ренжа
-            </p>
+          {/* Header: Folder/Range Name and Statistics */}
+          <div className="flex justify-between items-end">
+            <div className="text-left">
+              {currentFolder && (
+                <h2 className="text-base font-bold text-muted-foreground mb-px">
+                  {currentFolder.name}
+                </h2>
+              )}
+              {currentRange && (
+                <h1 className="text-sm font-normal ml-1">
+                  {currentRange.name}
+                </h1>
+              )}
+            </div>
+
+            {currentRange && (
+              <div className="bg-background/80 px-2 py-1 rounded text-xs font-mono flex items-center gap-1 z-10">
+                <span className="text-primary font-bold">{getSelectedCombinationsPercentage()}%</span>
+                <span className="text-muted-foreground">({getSelectedCombinationsCount()})</span>
+              </div>
+            )}
           </div>
 
           {currentRange && (

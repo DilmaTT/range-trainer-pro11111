@@ -6,8 +6,10 @@ import { RangeEditor } from "@/components/RangeEditor";
 import { Training } from "@/components/Training";
 import { Library } from "@/components/Library";
 import { Button } from "@/components/ui/button";
+import { Toggle } from "@/components/ui/toggle";
 import { Monitor, Smartphone } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { cn } from "@/lib/utils";
 
 const Index = () => {
   const [activeSection, setActiveSection] = useState<'editor' | 'training' | 'library'>('editor');
@@ -28,6 +30,37 @@ const Index = () => {
     }
   };
 
+  const mobileHeaderActions = (
+    <div className="flex items-center gap-2 ml-auto"> {/* Added ml-auto to push to right */}
+      {/* Version Switch Toggles */}
+      <Toggle
+        variant="outline"
+        size="sm"
+        pressed={isMobileMode}
+        onPressedChange={() => setForceMobile(true)}
+        className={cn(
+          "flex items-center justify-center",
+          isMobileMode ? "opacity-100" : "opacity-50"
+        )}
+      >
+        <Smartphone className="h-4 w-4" />
+      </Toggle>
+      <Toggle
+        variant="outline"
+        size="sm"
+        pressed={!isMobileMode}
+        onPressedChange={() => setForceMobile(false)}
+        className={cn(
+          "flex items-center justify-center",
+          !isMobileMode ? "opacity-100" : "opacity-50"
+        )}
+      >
+        <Monitor className="h-4 w-4" />
+      </Toggle>
+      <UserMenu isMobileMode={isMobileMode} />
+    </div>
+  );
+
   return (
     <div className="min-h-screen bg-background">
       {!isMobileMode ? (
@@ -35,7 +68,6 @@ const Index = () => {
         <>
           <div className="p-4 border-b bg-card">
             <div className="max-w-7xl mx-auto flex items-center justify-between">
-              <h1 className="text-2xl font-bold text-primary">PokerRange Trainer</h1>
               <div className="flex items-center gap-4">
                 <Navigation 
                   activeSection={activeSection} 
@@ -50,7 +82,7 @@ const Index = () => {
                   <Smartphone className="h-4 w-4" />
                   Мобильный режим
                 </Button>
-                <UserMenu />
+                <UserMenu isMobileMode={isMobileMode} />
               </div>
             </div>
           </div>
@@ -59,27 +91,14 @@ const Index = () => {
       ) : (
         // Mobile Layout
         <div className="min-h-screen bg-background flex flex-col">
-          <div className="p-4 border-b bg-card">
+          <div className="px-4 border-b bg-card"> {/* Changed p-4 to px-4 */}
             <div className="flex items-center justify-between">
               <Navigation 
                 activeSection={activeSection} 
                 onSectionChange={setActiveSection}
                 isMobile={true}
+                mobileActions={mobileHeaderActions} // Pass mobile actions here
               />
-              <div className="flex items-center gap-2">
-                {!isMobileDevice && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setForceMobile(false)}
-                    className="flex items-center gap-1"
-                  >
-                    <Monitor className="h-4 w-4" />
-                    ПК
-                  </Button>
-                )}
-                <UserMenu />
-              </div>
             </div>
           </div>
           <div className="flex-1 flex flex-col">

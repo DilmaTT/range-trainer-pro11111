@@ -49,46 +49,9 @@ export const PokerMatrix = ({ selectedHands, onHandSelect, activeAction, actionB
     return button ? { backgroundColor: button.color, color: 'white' } : {};
   };
 
-  const getPercentage = () => {
-    const totalHands = 169; // Total poker hands
-    const selectedCount = Object.values(selectedHands).filter(action => action && action !== 'fold').length;
-    return Math.round((selectedCount / totalHands) * 100);
-  };
-
-  const getColorStats = () => {
-    const totalHands = 169;
-    const stats: Record<string, { count: number; percentage: number; color: string; name: string }> = {};
-    
-    // Initialize stats for each action button
-    actionButtons.forEach(button => {
-      stats[button.id] = {
-        count: 0,
-        percentage: 0,
-        color: button.color,
-        name: button.name
-      };
-    });
-    
-    // Count hands for each action
-    Object.values(selectedHands).forEach(action => {
-      if (action && action !== 'fold' && stats[action]) {
-        stats[action].count++;
-      }
-    });
-    
-    // Calculate percentages
-    Object.keys(stats).forEach(action => {
-      stats[action].percentage = Math.round((stats[action].count / totalHands) * 100);
-    });
-    
-    const totalSelected = Object.values(stats).reduce((sum, stat) => sum + stat.count, 0);
-    
-    return { stats, totalSelected };
-  };
-
   return (
     <div className="space-y-4">
-      <div className="inline-grid grid-cols-13 gap-0.5 sm:gap-1 bg-card p-2 sm:p-4 rounded-lg border overflow-x-auto">
+      <div className="grid grid-cols-13 gap-1 bg-card p-2 sm:p-4 rounded-lg border relative aspect-square w-full lg:w-[63%]">
         {HANDS.map((row, rowIndex) => 
           row.map((hand, colIndex) => (
             <Button
@@ -96,7 +59,8 @@ export const PokerMatrix = ({ selectedHands, onHandSelect, activeAction, actionB
               variant="outline"
               size="sm"
               className={cn(
-                "h-6 w-6 sm:h-10 sm:w-10 p-0 text-[10px] sm:text-xs font-mono border transition-all duration-200 flex-shrink-0",
+                "w-full h-full aspect-square p-0 font-mono border transition-all duration-200",
+                "text-[clamp(0.625rem,1.5vw,0.875rem)]", // Smoothly scales font from 10px to 14px based on viewport width
                 getHandColor(hand),
                 "hover:ring-2 hover:ring-ring"
               )}
@@ -109,50 +73,23 @@ export const PokerMatrix = ({ selectedHands, onHandSelect, activeAction, actionB
           ))
         )}
       </div>
-      
-      <div className="space-y-3">
-        <div className="flex items-center justify-between text-sm">
-          <span className="text-muted-foreground">Выбрано рук:</span>
-          <span className="font-mono text-lg font-bold text-primary">
-            {getPercentage()}%
-          </span>
-        </div>
-        
-        {(() => {
-          const { stats, totalSelected } = getColorStats();
-          return (
-            <div className="space-y-2">
-              <div className="text-sm text-muted-foreground">По действиям:</div>
-              <div className="grid grid-cols-2 gap-2 text-sm">
-                {Object.entries(stats).map(([actionId, stat]) => (
-                  stat.count > 0 && (
-                    <div key={actionId} className="flex items-center justify-between p-2 rounded border">
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className="w-3 h-3 rounded" 
-                          style={{ backgroundColor: stat.color }}
-                        />
-                        <span className="font-medium">{stat.name}</span>
-                      </div>
-                      <div className="font-mono text-xs">
-                        <span className="text-primary font-bold">{stat.percentage}%</span>
-                        <span className="text-muted-foreground ml-1">({stat.count})</span>
-                      </div>
-                    </div>
-                  )
-                ))}
-              </div>
-              <div className="flex items-center justify-between pt-2 border-t text-sm">
-                <span className="text-muted-foreground font-medium">Всего:</span>
-                <span className="font-mono">
-                  <span className="text-primary font-bold">{Math.round((totalSelected / 169) * 100)}%</span>
-                  <span className="text-muted-foreground ml-1">({totalSelected} рук)</span>
-                </span>
-              </div>
-            </div>
-          );
-        })()}
-      </div>
     </div>
   );
 };
+
+// Helper to get the number of combinations for a given hand type
+export const getCombinations = (hand: string): number => {
+  if (hand.length === 2 && hand[0] === hand[1]) { // Pair, e.g., 'AA'
+    return 6;
+  }
+  if (hand.endsWith('s')) { // Suited, e.g., 'AKs'
+    return 4;
+  }
+  if (hand.endsWith('o')) { // Offsuit, e.g., 'AKo'
+    return 12;
+  }
+  return 0; // Should not happen for valid poker hands
+};
+
+// Calculate total possible combinations (1326)
+export const TOTAL_POKER_COMBINATIONS = HANDS.flat().reduce((sum, hand) => sum + getCombinations(hand), 0);

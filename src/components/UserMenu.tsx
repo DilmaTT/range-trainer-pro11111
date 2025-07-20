@@ -9,8 +9,14 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useAuth } from "@/contexts/AuthContext";
 import { AuthDialog } from "./AuthDialog";
+import { Settings } from "lucide-react"; // Import Settings icon
+import { cn } from "@/lib/utils"; // Import cn utility
 
-export const UserMenu = () => {
+interface UserMenuProps {
+  isMobileMode: boolean; // Add this prop
+}
+
+export const UserMenu = ({ isMobileMode }: UserMenuProps) => { // Destructure isMobileMode
   const { user, logout, isAuthenticated } = useAuth();
   const [authDialogOpen, setAuthDialogOpen] = useState(false);
 
@@ -21,14 +27,23 @@ export const UserMenu = () => {
           variant="outline"
           size="sm"
           onClick={() => setAuthDialogOpen(true)}
-          className="flex items-center gap-2"
+          className={cn(
+            "flex items-center",
+            isMobileMode ? "w-10 h-10 p-0 justify-center" : "gap-2" // Conditional styling for mobile icon button
+          )}
         >
-          <Avatar className="h-6 w-6">
-            <AvatarFallback className="text-xs">
-              ?
-            </AvatarFallback>
-          </Avatar>
-          Войти
+          {isMobileMode ? (
+            <Settings className="h-4 w-4" /> // Gear icon for mobile unauthenticated
+          ) : (
+            <>
+              <Avatar className="h-6 w-6">
+                <AvatarFallback className="text-xs">
+                  ?
+                </AvatarFallback>
+              </Avatar>
+              Войти
+            </>
+          )}
         </Button>
         
         <AuthDialog 
