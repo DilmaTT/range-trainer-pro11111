@@ -29,7 +29,8 @@ export const UserMenu = ({ isMobileMode }: UserMenuProps) => { // Destructure is
           onClick={() => setAuthDialogOpen(true)}
           className={cn(
             "flex items-center",
-            isMobileMode ? "w-10 h-10 p-0 justify-center" : "gap-2" // Conditional styling for mobile icon button
+            isMobileMode ? "w-10 h-10 p-0 justify-center" : "gap-2", // Conditional styling for mobile icon button
+            isMobileMode && "h-10" // Уменьшаем высоту для мобильного режима
           )}
         >
           {isMobileMode ? (
@@ -59,7 +60,14 @@ export const UserMenu = ({ isMobileMode }: UserMenuProps) => { // Destructure is
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="outline" size="sm" className="flex items-center gap-2">
+        <Button 
+          variant="outline" 
+          size="sm" 
+          className={cn(
+            "flex items-center gap-2",
+            isMobileMode && "h-10" // Уменьшаем высоту для мобильного режима
+          )}
+        >
           <Avatar className="h-6 w-6">
             <AvatarFallback className="text-xs">
               {userInitial}

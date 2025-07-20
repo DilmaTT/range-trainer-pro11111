@@ -16,8 +16,8 @@ export const Navigation = ({ activeSection, onSectionChange, isMobile = false, m
     { id: 'library' as const, label: 'Чарт' }
   ];
 
-  return (
-    <nav className="flex items-center gap-1 bg-card border w-full"> {/* Removed p-1 and rounded-lg */}
+  const content = (
+    <>
       <div className="flex items-center gap-1"> {/* Wrap buttons in a div for consistent spacing */}
         {sections.map((section) => (
           <Button
@@ -27,7 +27,8 @@ export const Navigation = ({ activeSection, onSectionChange, isMobile = false, m
             onClick={() => onSectionChange(section.id)}
             className={cn(
               "transition-all duration-200",
-              activeSection === section.id && "shadow-md"
+              activeSection === section.id && "shadow-md",
+              isMobile && "h-10" // Уменьшаем высоту для мобильного режима
             )}
           >
             {section.label}
@@ -35,6 +36,16 @@ export const Navigation = ({ activeSection, onSectionChange, isMobile = false, m
         ))}
       </div>
       {isMobile && mobileActions} {/* Render mobile actions if in mobile mode */}
+    </>
+  );
+
+  if (isMobile) {
+    return content; // Directly return content without the nav wrapper for mobile
+  }
+
+  return (
+    <nav className="flex items-center gap-1 bg-card border w-full"> {/* Removed p-1 and rounded-lg */}
+      {content}
     </nav>
   );
 };

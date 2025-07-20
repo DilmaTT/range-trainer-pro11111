@@ -1,11 +1,38 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { PokerMatrix, getCombinations, TOTAL_POKER_COMBINATIONS } from "./PokerMatrix"; // Import helpers
-import { Plus, Palette, Trash2 } from "lucide-react"; // Removed Download, Upload
+import { Plus, Palette, Trash2, Copy } from "lucide-react"; // Added Copy
 import { cn } from "@/lib/utils";
 import { useRangeContext } from "@/contexts/RangeContext";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogTrigger,
+  DialogClose,
+  DialogFooter
+} from "@/components/ui/dialog"; // Import Dialog components, including DialogFooter
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog"; // Import AlertDialog components
+import {
+  Accordion,
+  AccordionItem,
+  AccordionTrigger,
+  AccordionContent,
+} from "@/components/ui/accordion"; // Import Accordion components
 
 interface ActionButton {
   id: string;
@@ -29,19 +56,230 @@ interface RangeEditorProps {
   isMobileMode?: boolean;
 }
 
+// Define FolderRangeTreeProps interface
+interface FolderRangeTreeProps {
+  folders: Folder[]; // This will always be an array, even if it contains only one folder
+  selectedRange: string;
+  setSelectedRange: (id: string) => void;
+  editingFolderId: string | null;
+  setEditingFolderId: (id: string | null) => void;
+  editingButton: string | null;
+  setEditingButton: (id: string | null) => void;
+  updateFolderName: (folderId: string, newName: string) => void;
+  updateRangeName: (rangeId: string, newName: string) => void;
+  addRange: (folderId: string) => void;
+  deleteFolder: (folderId: string) => void;
+  deleteRange: (rangeId: string) => void;
+  cloneRange: (folderId: string, rangeToClone: Range) => void; // Added cloneRange
+  isMobileMode: boolean;
+  inDialog: boolean;
+  totalFoldersCount: number; // New prop
+  openFolderId: string | null; // New prop for Accordion
+  setOpenFolderId: (id: string | null) => void; // New prop for Accordion
+}
+
+// New component for the folder/range tree structure content
+const FolderRangeTreeContent = ({
+  folders,
+  selectedRange,
+  setSelectedRange,
+  editingFolderId,
+  setEditingFolderId,
+  editingButton,
+  setEditingButton,
+  updateFolderName,
+  updateRangeName,
+  addRange,
+  deleteFolder,
+  deleteRange,
+  cloneRange, // Destructure cloneRange
+  isMobileMode,
+  inDialog,
+  totalFoldersCount,
+  openFolderId,
+  setOpenFolderId,
+}: FolderRangeTreeProps) => {
+  return (
+    <Accordion type="single" collapsible value={openFolderId || undefined} onValueChange={setOpenFolderId}>
+      {folders.map((folder) => (
+        <AccordionItem key={folder.id} value={folder.id}>
+          <AccordionTrigger className="flex items-center justify-between mb-1 py-2 hover:no-underline">
+            {editingFolderId === folder.id ? (
+              <Input
+                value={folder.name}
+                onChange={(e) => updateFolderName(folder.id, e.target.value)}
+                onBlur={() => setEditingFolderId(null)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') {
+                    setEditingFolderId(null);
+                  }
+                }}
+                className={cn(
+                  "h-6 text-sm border-none bg-transparent p-0 focus:bg-background",
+                  isMobileMode && "max-w-[50vw]"
+                )}
+                maxLength={isMobileMode ? 12 : 8}
+                autoFocus
+                onClick={(e) => e.stopPropagation()}
+              />
+            ) : (
+              <span
+                onDoubleClick={() => setEditingFolderId(folder.id)}
+                className={cn(
+                  "cursor-text text-sm flex-1 truncate text-left",
+                  isMobileMode && "max-w-[50vw]"
+                )}
+              >
+                {folder.name}
+              </span>
+            )}
+            <div className="flex items-center gap-1 ml-auto">
+              <Button 
+                size="sm" 
+                variant="ghost" 
+                onClick={(e) => { e.stopPropagation(); addRange(folder.id); }}
+                className="h-6 w-6 p-0"
+              >
+                <Plus className="h-3 w-3" />
+              </Button>
+              {totalFoldersCount > 1 && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={(e) => e.stopPropagation()}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Вы уверены?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Это действие безвозвратно удалит папку "{folder.name}" и все содержащиеся в ней ренжи.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Отмена</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => deleteFolder(folder.id)}>Удалить</AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              )}
+              {/* ChevronDown from AccordionTrigger is automatically added here */}
+            </div>
+          </AccordionTrigger>
+          
+          <AccordionContent className="pb-0 pt-0">
+            <div className="space-y-1 ml-4">
+              {folder.ranges.map((range) => (
+                  <div
+                    key={range.id}
+                    className={cn(
+                      "flex items-center justify-between p-2 rounded cursor-pointer",
+                      selectedRange === range.id ? "bg-primary/10" : "hover:bg-muted/50"
+                    )}
+                    onClick={() => {
+                      setSelectedRange(range.id);
+                      // Do NOT close dialog here, only update selectedRange
+                    }}
+                  >
+                    <span
+                      onDoubleClick={(e) => {
+                        e.stopPropagation();
+                        setEditingButton(range.id);
+                      }}
+                      className={cn(
+                        "cursor-text text-xs flex-1 truncate",
+                        isMobileMode && "max-w-[50vw]"
+                      )}
+                    >
+                      {editingButton === range.id ? (
+                        <Input
+                          value={range.name}
+                          onChange={(e) => updateRangeName(range.id, e.target.value)}
+                          onBlur={() => setEditingButton(null)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              setEditingButton(null);
+                            }
+                          }}
+                          className="h-5 text-xs border-none bg-transparent p-0 focus:bg-background"
+                          maxLength={isMobileMode ? 12 : 8}
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      ) : (
+                        range.name
+                      )}
+                    </span>
+                    <div className="flex items-center gap-1 ml-2">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          cloneRange(folder.id, range);
+                        }}
+                        className="h-6 w-6 p-0"
+                      >
+                        <Copy className="h-3 w-3" />
+                      </Button>
+                      {folder.ranges.length > 1 && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            deleteRange(range.id);
+                          }}
+                          className="h-6 w-6 p-0"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+              ))}
+            </div>
+          </AccordionContent>
+        </AccordionItem>
+      ))}
+    </Accordion>
+  );
+};
+
 export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
   const [editingButton, setEditingButton] = useState<string | null>(null);
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const { folders, setFolders, actionButtons, setActionButtons } = useRangeContext();
   
   const [selectedRange, setSelectedRange] = useState<string>(folders[0]?.ranges[0]?.id || '');
   const [activeAction, setActiveAction] = useState(actionButtons[0]?.id || 'raise');
+  const [showRangeSelectorDialog, setShowRangeSelectorDialog] = useState(false);
+  const [openFolderId, setOpenFolderId] = useState<string | null>(null); // State for Accordion
+
+  // Effect to set the open folder based on selectedRange
+  useEffect(() => {
+    const currentFolder = folders.find(f => f.ranges.some(r => r.id === selectedRange));
+    if (currentFolder) {
+      setOpenFolderId(currentFolder.id);
+    } else if (folders.length > 0) {
+      // If selected range is somehow not found (e.g., deleted), default to the first folder
+      setOpenFolderId(folders[0].id);
+      setSelectedRange(folders[0].ranges[0]?.id || ''); // Also update selectedRange
+    } else {
+      setOpenFolderId(null); // No folders
+    }
+  }, [selectedRange, folders]);
 
   const getCurrentRangeAndFolder = () => {
     for (const folder of folders) {
       const range = folder.ranges.find(r => r.id === selectedRange);
       if (range) return { folder, range };
     }
-    return { folder: folders[0], range: folders[0]?.ranges[0] };
+    // Fallback if selectedRange is invalid or not found
+    if (folders.length > 0 && folders[0].ranges.length > 0) {
+      return { folder: folders[0], range: folders[0].ranges[0] };
+    }
+    return { folder: null, range: null };
   };
 
   const updateRangeName = (rangeId: string, newName: string) => {
@@ -62,16 +300,43 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
   const addFolder = () => {
     const newFolder: Folder = {
       id: Date.now().toString(),
-      name: 'Folder',
-      ranges: []
+      name: 'Новая папка',
+      ranges: [{
+        id: Date.now().toString() + '-range',
+        name: 'Новый ренж',
+        hands: {}
+      }]
     };
     setFolders(prev => [...prev, newFolder]);
+    setSelectedRange(newFolder.ranges[0].id);
+  };
+
+  const deleteFolder = (folderId: string) => {
+    setFolders(prev => {
+      const updatedFolders = prev.filter(folder => folder.id !== folderId);
+      if (updatedFolders.length === 0) {
+        const newFolder: Folder = {
+          id: Date.now().toString(),
+          name: 'Папка',
+          ranges: [{
+            id: Date.now().toString() + '-range',
+            name: 'Ренж',
+            hands: {}
+          }]
+        };
+        setSelectedRange(newFolder.ranges[0].id);
+        return [newFolder];
+      } else if (!updatedFolders.some(f => f.ranges.some(r => r.id === selectedRange))) {
+        setSelectedRange(updatedFolders[0].ranges[0]?.id || '');
+      }
+      return updatedFolders;
+    });
   };
 
   const addRange = (folderId: string) => {
     const newRange: Range = {
       id: Date.now().toString(),
-      name: 'Range',
+      name: 'Новый ренж',
       hands: {}
     };
     setFolders(prev => prev.map(folder => 
@@ -79,23 +344,62 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
         ? { ...folder, ranges: [...folder.ranges, newRange] }
         : folder
     ));
+    setSelectedRange(newRange.id);
+  };
+
+  const cloneRange = (folderId: string, rangeToClone: Range) => {
+    const newRange: Range = {
+      id: Date.now().toString(),
+      name: `${rangeToClone.name} +clone`,
+      hands: { ...rangeToClone.hands } // Deep copy hands
+    };
+    setFolders(prev => prev.map(folder =>
+      folder.id === folderId
+        ? { ...folder, ranges: [...folder.ranges, newRange] }
+        : folder
+    ));
+    setSelectedRange(newRange.id);
   };
 
   const deleteRange = (rangeId: string) => {
-    setFolders(prev => prev.map(folder => ({
-      ...folder,
-      ranges: folder.ranges.filter(range => range.id !== rangeId)
-    })));
-    if (selectedRange === rangeId) {
-      // Find first available range
-      for (const folder of folders) {
-        const firstRange = folder.ranges.find(r => r.id !== rangeId);
-        if (firstRange) {
-          setSelectedRange(firstRange.id);
-          break;
+    setFolders(prev => {
+      let newSelectedRange = selectedRange;
+      const updatedFolders = prev.map(folder => {
+        const updatedRanges = folder.ranges.filter(range => range.id !== rangeId);
+        if (updatedRanges.length === 0 && folder.id !== '1') { // Prevent deleting the last range in the default folder
+          return null;
+        }
+        return { ...folder, ranges: updatedRanges };
+      }).filter(Boolean) as Folder[];
+
+      // If the deleted range was selected, find a new one to select
+      if (newSelectedRange === rangeId) {
+        let foundNew = false;
+        for (const folder of updatedFolders) {
+          if (folder.ranges.length > 0) {
+            newSelectedRange = folder.ranges[0].id;
+            foundNew = true;
+            break;
+          }
+        }
+        // If no ranges left at all, create a default one
+        if (!foundNew) {
+          const newFolder: Folder = {
+            id: Date.now().toString(),
+            name: 'Папка',
+            ranges: [{
+              id: Date.now().toString() + '-range',
+              name: 'Ренж',
+              hands: {}
+            }]
+          };
+          newSelectedRange = newFolder.ranges[0].id;
+          return [newFolder]; // Replace all folders with this new default
         }
       }
-    }
+      setSelectedRange(newSelectedRange);
+      return updatedFolders;
+    });
   };
 
   const addActionButton = () => {
@@ -105,7 +409,7 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
     
     const newButton: ActionButton = {
       id: Date.now().toString(),
-      name: 'Action',
+      name: 'Действие',
       color: availableColor
     };
     setActionButtons(prev => [...prev, newButton]);
@@ -125,9 +429,6 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
       }
     }
   };
-
-  // Removed exportRanges function
-  // Removed importRanges function
 
   const onHandSelect = (hand: string) => {
     const { range: currentRange } = getCurrentRangeAndFolder();
@@ -166,6 +467,115 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
     return TOTAL_POKER_COMBINATIONS > 0 ? Math.round((selectedCount / TOTAL_POKER_COMBINATIONS) * 100) : 0;
   };
 
+  const renderFolderAndRangeManagement = (inDialog: boolean = false) => (
+    <div className={cn(
+      "space-y-4",
+      inDialog ? "flex-1 flex flex-col" : ""
+    )}>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">
+          {isMobileMode || inDialog ? "Управление папками и ренжами" : "Создать"}
+        </h2>
+        {(isMobileMode || inDialog) ? (
+          <Button size="sm" onClick={addFolder} variant="outline">
+            <Plus className="h-4 w-4" /> Добавить папку
+          </Button>
+        ) : (
+          <Button size="sm" onClick={addFolder} variant="ghost" className="h-6 w-6 p-0">
+            <Plus className="h-4 w-4" />
+          </Button>
+        )}
+      </div>
+      
+      <div className={cn(
+        "space-y-2 overflow-y-auto",
+        // Apply max-height only when NOT in dialog
+        !inDialog && (isMobileMode ? "max-h-64" : "max-h-96"),
+        inDialog ? "flex-1" : ""
+      )}>
+        {inDialog ? (
+          // Single adaptive container for dialog
+          <div className="space-y-2">
+            <FolderRangeTreeContent
+              folders={folders}
+              selectedRange={selectedRange}
+              setSelectedRange={setSelectedRange}
+              editingFolderId={editingFolderId}
+              setEditingFolderId={setEditingFolderId}
+              editingButton={editingButton}
+              setEditingButton={setEditingButton}
+              updateFolderName={updateFolderName}
+              updateRangeName={updateRangeName}
+              addRange={addRange}
+              deleteFolder={deleteFolder}
+              deleteRange={deleteRange}
+              cloneRange={cloneRange} // Pass cloneRange
+              isMobileMode={isMobileMode}
+              inDialog={inDialog}
+              totalFoldersCount={folders.length}
+              openFolderId={openFolderId}
+              setOpenFolderId={setOpenFolderId}
+            />
+          </div>
+        ) : (
+          // Original rendering for PC mode (single Card) or mobile (multiple Cards)
+          (!isMobileMode ? (
+            <Card className="p-3 space-y-2">
+              <FolderRangeTreeContent
+                folders={folders}
+                selectedRange={selectedRange}
+                setSelectedRange={setSelectedRange}
+                editingFolderId={editingFolderId}
+                setEditingFolderId={setEditingFolderId}
+                editingButton={editingButton}
+                setEditingButton={setEditingButton}
+                updateFolderName={updateFolderName}
+                updateRangeName={updateRangeName}
+                addRange={addRange}
+                deleteFolder={deleteFolder}
+                deleteRange={deleteRange}
+                cloneRange={cloneRange} // Pass cloneRange
+                isMobileMode={isMobileMode}
+                inDialog={inDialog}
+                totalFoldersCount={folders.length}
+                openFolderId={openFolderId}
+                setOpenFolderId={setOpenFolderId}
+              />
+            </Card>
+          ) : (
+            // Mobile mode (not in dialog) still uses individual cards for each folder
+            folders.map((folder) => (
+              <Card key={folder.id} className="p-3">
+                {/* For mobile main view, we don't use Accordion per folder,
+                    but the FolderRangeTreeContent is designed to handle a single folder array */}
+                <FolderRangeTreeContent
+                  folders={[folder]} // Pass single folder in an array
+                  selectedRange={selectedRange}
+                  setSelectedRange={setSelectedRange}
+                  editingFolderId={editingFolderId}
+                  setEditingFolderId={setEditingFolderId}
+                  editingButton={editingButton}
+                  setEditingButton={setEditingButton}
+                  updateFolderName={updateFolderName}
+                  updateRangeName={updateRangeName}
+                  addRange={addRange}
+                  deleteFolder={deleteFolder}
+                  deleteRange={deleteRange}
+                  cloneRange={cloneRange} // Pass cloneRange
+                  isMobileMode={isMobileMode}
+                  inDialog={inDialog}
+                  totalFoldersCount={folders.length}
+                  openFolderId={openFolderId}
+                  setOpenFolderId={setOpenFolderId}
+                />
+              </Card>
+            ))
+          ))
+        )}
+      </div>
+    </div>
+  );
+
   return (
     <div className={cn(
       "bg-background",
@@ -174,12 +584,20 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
       {/* Sidebar */}
       <div className={cn(
         "bg-card p-4 space-y-4",
-        isMobileMode ? "order-2 flex flex-col" : "w-80 border-r" // Added flex flex-col for mobile ordering
+        isMobileMode ? "order-2 flex flex-col" : "w-80 border-r flex flex-col"
       )}>
+        {/* Folder section */}
+        <div className={cn(
+          "space-y-4",
+          isMobileMode ? "hidden" : "order-1"
+        )}>
+          {renderFolderAndRangeManagement()}
+        </div>
+
         {/* Action Buttons */}
         <div className={cn(
           "space-y-3 border-t pt-4",
-          isMobileMode ? "order-1" : "" // Order 1 for mobile
+          isMobileMode ? "order-1" : "order-2"
         )}>
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium">Действия</h3>
@@ -217,7 +635,7 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
                     />
                   ) : (
                     <span 
-                      onClick={(e) => {
+                      onDoubleClick={(e) => {
                         e.stopPropagation();
                         setEditingButton(button.id);
                       }}
@@ -248,104 +666,29 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
             ))}
           </div>
 
-          {/* Removed Import/Export buttons */}
-        </div>
-
-        {/* Folder section */}
-        <div className={cn(
-          "space-y-4", // Keep original spacing for consistency
-          isMobileMode ? "order-2" : "" // Order 2 for mobile
-        )}>
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Добавить папку</h2>
-            <Button size="sm" onClick={addFolder} variant="outline">
-              <Plus className="h-4 w-4" />
-            </Button>
-          </div>
-          
-          <div className={cn(
-            "space-y-2 overflow-y-auto",
-            isMobileMode ? "max-h-64" : "max-h-96"
-          )}>
-            {folders.map((folder) => (
-              <Card key={folder.id} className="p-3">
-                <div className="flex items-center justify-between mb-2">
-                  <Input
-                    value={folder.name}
-                    onChange={(e) => updateFolderName(folder.id, e.target.value)}
-                    className={cn(
-                      "h-6 text-sm border-none bg-transparent p-0 focus:bg-background",
-                      isMobileMode && "max-w-[50vw]"
-                    )}
-                    maxLength={isMobileMode ? 12 : 8}
-                  />
-                  <Button 
-                    size="sm" 
-                    variant="ghost" 
-                    onClick={() => addRange(folder.id)}
-                  >
-                    <Plus className="h-3 w-3" />
+          {isMobileMode && (
+            <Dialog open={showRangeSelectorDialog} onOpenChange={setShowRangeSelectorDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline" className="w-full mt-4">
+                  Выбрать ренж
+                </Button>
+              </DialogTrigger>
+              <DialogContent mobileFullscreen={true} className="flex flex-col">
+                <DialogHeader>
+                  <DialogTitle>Управление ренжами</DialogTitle>
+                  <DialogDescription>
+                    Создавайте, удаляйте и выбирайте папки и ренжи.
+                  </DialogDescription>
+                </DialogHeader>
+                {renderFolderAndRangeManagement(true)}
+                <DialogFooter className="mt-auto p-4 border-t">
+                  <Button onClick={() => setShowRangeSelectorDialog(false)} className="w-full">
+                    Выбрать
                   </Button>
-                </div>
-                
-                <div className="space-y-1 ml-4">
-                  {folder.ranges.map((range) => (
-                      <div
-                        key={range.id}
-                        className={cn(
-                          "flex items-center justify-between p-2 rounded cursor-pointer",
-                          selectedRange === range.id ? "bg-primary/10" : "hover:bg-muted/50"
-                        )}
-                        onClick={() => setSelectedRange(range.id)}
-                      >
-                        <span
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setEditingButton(range.id);
-                          }}
-                          className={cn(
-                            "cursor-text text-xs flex-1 truncate",
-                            isMobileMode && "max-w-[50vw]"
-                          )}
-                        >
-                          {editingButton === range.id ? (
-                            <Input
-                              value={range.name}
-                              onChange={(e) => updateRangeName(range.id, e.target.value)}
-                              onBlur={() => setEditingButton(null)}
-                              onKeyDown={(e) => {
-                                if (e.key === 'Enter') {
-                                  setEditingButton(null);
-                                }
-                              }}
-                              className="h-5 text-xs border-none bg-transparent p-0 focus:bg-background"
-                              maxLength={isMobileMode ? 12 : 8}
-                              autoFocus
-                              onClick={(e) => e.stopPropagation()}
-                            />
-                          ) : (
-                            range.name
-                          )}
-                        </span>
-                        {folder.ranges.length > 1 && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              deleteRange(range.id);
-                            }}
-                            className="h-6 w-6 p-0 ml-2"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        )}
-                      </div>
-                  ))}
-                </div>
-              </Card>
-            ))}
-          </div>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       </div>
 

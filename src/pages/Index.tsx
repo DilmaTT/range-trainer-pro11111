@@ -4,7 +4,8 @@ import { Navigation } from "@/components/Navigation";
 import { UserMenu } from "@/components/UserMenu";
 import { RangeEditor } from "@/components/RangeEditor";
 import { Training } from "@/components/Training";
-import { Library } from "@/components/Library";
+import { Library }
+ from "@/components/Library";
 import { Button } from "@/components/ui/button";
 import { Toggle } from "@/components/ui/toggle";
 import { Monitor, Smartphone } from "lucide-react";
@@ -40,7 +41,8 @@ const Index = () => {
         onPressedChange={() => setForceMobile(true)}
         className={cn(
           "flex items-center justify-center",
-          isMobileMode ? "opacity-100" : "opacity-50"
+          isMobileMode ? "opacity-100" : "opacity-50",
+          isMobileMode && "h-10" // Уменьшаем высоту для мобильного режима
         )}
       >
         <Smartphone className="h-4 w-4" />
@@ -52,7 +54,8 @@ const Index = () => {
         onPressedChange={() => setForceMobile(false)}
         className={cn(
           "flex items-center justify-center",
-          !isMobileMode ? "opacity-100" : "opacity-50"
+          !isMobileMode ? "opacity-100" : "opacity-50",
+          isMobileMode && "h-10" // Уменьшаем высоту для мобильного режима
         )}
       >
         <Monitor className="h-4 w-4" />
