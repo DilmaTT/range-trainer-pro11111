@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import React, { useState, useEffect, useRef } from 'react';
 
 // Poker hand matrix data
 const HANDS = [
@@ -26,13 +27,58 @@ interface ActionButton {
 
 interface PokerMatrixProps {
   selectedHands: Record<string, string>;
-  onHandSelect: (hand: string) => void;
+  // Обновленная сигнатура: теперь передает предполагаемый режим ('select' или 'deselect')
+  onHandSelect: (hand: string, mode: 'select' | 'deselect') => void;
   activeAction: string;
   actionButtons: ActionButton[];
   readOnly?: boolean;
 }
 
 export const PokerMatrix = ({ selectedHands, onHandSelect, activeAction, actionButtons, readOnly = false }: PokerMatrixProps) => {
+  const [isDragging, setIsDragging] = useState(false);
+  // Новое состояние для хранения режима перетаскивания (выбрать или отменить выбор)
+  const [dragMode, setDragMode] = useState<'select' | 'deselect' | null>(null);
+
+  // Добавляем глобальный слушатель mouseup, чтобы остановить перетаскивание, даже если мышь покидает матрицу
+  useEffect(() => {
+    const handleMouseUp = () => {
+      setIsDragging(false);
+      setDragMode(null); // Сбрасываем режим перетаскивания при отпускании кнопки мыши
+    };
+
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, []);
+
+  const handleMouseDown = (hand: string) => {
+    if (readOnly) return;
+    setIsDragging(true);
+
+    // Определяем режим перетаскивания на основе начального состояния руки
+    const currentHandAction = selectedHands[hand];
+    let mode: 'select' | 'deselect';
+
+    // Если рука в данный момент выбрана с активным действием, режим — 'deselect'.
+    // В противном случае (это 'fold', undefined или другое действие), режим — 'select'.
+    if (currentHandAction === activeAction) {
+      mode = 'deselect';
+    } else {
+      mode = 'select';
+    }
+    setDragMode(mode); // Устанавливаем определенный режим
+    onHandSelect(hand, mode); // Применяем действие к начальной руке
+  };
+
+  const handleMouseEnter = (hand: string) => {
+    if (readOnly) return;
+    if (isDragging && dragMode) { // Применяем только при перетаскивании и установленном режиме
+      onHandSelect(hand, dragMode); // Применяем действие на основе определенного режима
+    }
+  };
+
   const getHandColor = (hand: string) => {
     const action = selectedHands[hand];
     if (!action || action === 'fold') return 'bg-muted/50 text-muted-foreground hover:bg-muted/70';
@@ -51,7 +97,9 @@ export const PokerMatrix = ({ selectedHands, onHandSelect, activeAction, actionB
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-13 gap-1 bg-card p-2 sm:p-4 rounded-lg border relative aspect-square w-full lg:w-[63%]">
+      <div
+        className="grid grid-cols-13 gap-1 bg-card p-2 sm:p-4 rounded-lg border relative aspect-square w-full lg:w-[63%] select-none" // Added select-none for better UX
+      >
         {HANDS.map((row, rowIndex) => 
           row.map((hand, colIndex) => (
             <Button
@@ -65,7 +113,8 @@ export const PokerMatrix = ({ selectedHands, onHandSelect, activeAction, actionB
                 "hover:ring-2 hover:ring-ring"
               )}
               style={getHandStyle(hand)}
-              onClick={() => !readOnly && onHandSelect(hand)}
+              onMouseDown={() => handleMouseDown(hand)}
+              onMouseEnter={() => handleMouseEnter(hand)}
               disabled={readOnly}
             >
               {hand}
