@@ -492,8 +492,8 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
       
       <div className={cn(
         "space-y-2 overflow-y-auto",
-        // Apply max-height only when NOT in dialog
-        !inDialog && (isMobileMode ? "max-h-64" : "max-h-96"),
+        // Apply max-height only when NOT in dialog and in mobile mode
+        !inDialog && isMobileMode && "max-h-64",
         inDialog ? "flex-1" : ""
       )}>
         {inDialog ? (
@@ -586,8 +586,8 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
     )}>
       {/* Sidebar */}
       <div className={cn(
-        "bg-card p-4 space-y-4",
-        isMobileMode ? "order-2 flex flex-col" : "w-80 border-r flex flex-col"
+        "bg-card space-y-4",
+        isMobileMode ? "order-2 flex flex-col p-3" : "w-80 border-r flex flex-col p-4" // Adjusted padding for mobile
       )}>
         {/* Folder section */}
         <div className={cn(
@@ -599,8 +599,8 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
 
         {/* Action Buttons */}
         <div className={cn(
-          "space-y-3 border-t pt-4",
-          isMobileMode ? "order-1" : "order-2"
+          "space-y-3 border-t",
+          isMobileMode ? "order-1 pt-2" : "order-2 pt-4"
         )}>
           <div className="flex items-center justify-between">
             <h3 className="text-sm font-medium">Действия</h3>
@@ -697,48 +697,53 @@ export const RangeEditor = ({ isMobileMode = false }: RangeEditorProps) => {
 
       {/* Main Content */}
       <div className={cn(
-        "p-6",
-        isMobileMode ? "order-1 flex-1" : "flex-1"
+        isMobileMode ? "order-1 flex-1 p-4" : "flex-1 p-6" // Adjusted padding for mobile
       )}>
         <div className={cn(
-          "mx-auto space-y-6",
+          "mx-auto",
           isMobileMode ? "max-w-full" : "max-w-4xl"
         )}>
-          {/* Header: Folder/Range Name and Statistics */}
-          <div className="flex justify-between items-end">
-            <div className="text-left">
-              {currentFolder && (
-                <h2 className="text-base font-bold text-muted-foreground mb-px">
-                  {currentFolder.name}
-                </h2>
-              )}
+          {/* New wrapper for header and matrix */}
+          <div className={cn(
+            "space-y-4",
+            !isMobileMode && "lg:w-[63%] mx-auto"
+          )}>
+            {/* Header: Folder/Range Name and Statistics */}
+            <div className="flex justify-between items-end">
+              <div className="text-left">
+                {currentFolder && (
+                  <h2 className="text-base font-bold text-muted-foreground mb-px">
+                    {currentFolder.name}
+                  </h2>
+                )}
+                {currentRange && (
+                  <h1 className="text-sm font-normal ml-1">
+                    {currentRange.name}
+                  </h1>
+                )}
+              </div>
+
               {currentRange && (
-                <h1 className="text-sm font-normal ml-1">
-                  {currentRange.name}
-                </h1>
+                <div className="bg-background/80 px-2 py-1 rounded text-xs font-mono flex items-center gap-1 z-10">
+                  <span className="text-primary font-bold">{getSelectedCombinationsPercentage()}%</span>
+                  <span className="text-muted-foreground">({getSelectedCombinationsCount()})</span>
+                </div>
               )}
             </div>
 
             {currentRange && (
-              <div className="bg-background/80 px-2 py-1 rounded text-xs font-mono flex items-center gap-1 z-10">
-                <span className="text-primary font-bold">{getSelectedCombinationsPercentage()}%</span>
-                <span className="text-muted-foreground">({getSelectedCombinationsCount()})</span>
+              <div className={cn(
+                isMobileMode && "overflow-x-auto"
+              )}>
+                <PokerMatrix
+                  selectedHands={currentRange.hands}
+                  onHandSelect={onHandSelect}
+                  activeAction={activeAction}
+                  actionButtons={actionButtons}
+                />
               </div>
             )}
           </div>
-
-          {currentRange && (
-            <div className={cn(
-              isMobileMode && "overflow-x-auto"
-            )}>
-              <PokerMatrix
-                selectedHands={currentRange.hands}
-                onHandSelect={onHandSelect}
-                activeAction={activeAction}
-                actionButtons={actionButtons}
-              />
-            </div>
-          )}
         </div>
       </div>
     </div>

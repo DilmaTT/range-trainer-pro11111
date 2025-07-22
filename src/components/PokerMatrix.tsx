@@ -1,23 +1,31 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import React, { useState, useEffect, useRef } from 'react';
+import { useIsMobile } from "@/hooks/use-mobile";
 
 // Poker hand matrix data
-const HANDS = [
-  ['AA', 'AKs', 'AQs', 'AJs', 'ATs', 'A9s', 'A8s', 'A7s', 'A6s', 'A5s', 'A4s', 'A3s', 'A2s'],
-  ['AKo', 'KK', 'KQs', 'KJs', 'KTs', 'K9s', 'K8s', 'K7s', 'K6s', 'K5s', 'K4s', 'K3s', 'K2s'],
-  ['AQo', 'KQo', 'QQ', 'QJs', 'QTs', 'Q9s', 'Q8s', 'Q7s', 'Q6s', 'Q5s', 'Q4s', 'Q3s', 'Q2s'],
-  ['AJo', 'KJo', 'QJo', 'JJ', 'JTs', 'J9s', 'J8s', 'J7s', 'J6s', 'J5s', 'J4s', 'J3s', 'J2s'],
-  ['ATo', 'KTo', 'QTo', 'JTo', 'TT', 'T9s', 'T8s', 'T7s', 'T6s', 'T5s', 'T4s', 'T3s', 'T2s'],
-  ['A9o', 'K9o', 'Q9o', 'J9o', 'T9o', '99', '98s', '97s', '96s', '95s', '94s', '93s', '92s'],
-  ['A8o', 'K8o', 'Q8o', 'J8o', 'T8o', '98o', '88', '87s', '86s', '85s', '84s', '83s', '82s'],
-  ['A7o', 'K7o', 'Q7o', 'J7o', 'T7o', '97o', '87o', '77', '76s', '75s', '74s', '73s', '72s'],
-  ['A6o', 'K6o', 'Q6o', 'J6o', 'T6o', '96o', '86o', '76o', '66', '65s', '64s', '63s', '62s'],
-  ['A5o', 'K5o', 'Q5o', 'J5o', 'T5o', '95o', '85o', '75o', '65o', '55', '54s', '53s', '52s'],
-  ['A4o', 'K4o', 'Q4o', 'J4o', 'T4o', '94o', '84o', '74o', '64o', '54o', '44', '43s', '42s'],
-  ['A3o', 'K3o', 'Q3o', 'J3o', 'T3o', '93o', '83o', '73o', '63o', '53o', '43o', '33', '32s'],
-  ['A2o', 'K2o', 'Q2o', 'J2o', 'T2o', '92o', '82o', '72o', '62o', '52o', '42o', '32o', '22']
-];
+const RANKS = ['A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2'];
+
+const HANDS = [];
+for (let i = 0; i < RANKS.length; i++) {
+  const row = [];
+  for (let j = 0; j < RANKS.length; j++) {
+    const rank1 = RANKS[i];
+    const rank2 = RANKS[j];
+
+    if (i === j) {
+      // Diagonal: Pairs
+      row.push(`${rank1}${rank1}`);
+    } else if (i < j) {
+      // Upper triangle: Suited hands (e.g., AKs, AQs)
+      row.push(`${rank1}${rank2}s`);
+    } else {
+      // Lower triangle: Offsuit hands (e.g., AKo, AQo)
+      row.push(`${rank2}${rank1}o`); // Note: rank2 then rank1 for offsuit to maintain standard naming (e.g., AKo not KAo)
+    }
+  }
+  HANDS.push(row);
+}
 
 interface ActionButton {
   id: string;
@@ -27,7 +35,6 @@ interface ActionButton {
 
 interface PokerMatrixProps {
   selectedHands: Record<string, string>;
-  // Обновленная сигнатура: теперь передает предполагаемый режим ('select' или 'deselect')
   onHandSelect: (hand: string, mode: 'select' | 'deselect') => void;
   activeAction: string;
   actionButtons: ActionButton[];
@@ -35,47 +42,62 @@ interface PokerMatrixProps {
 }
 
 export const PokerMatrix = ({ selectedHands, onHandSelect, activeAction, actionButtons, readOnly = false }: PokerMatrixProps) => {
+  const isMobile = useIsMobile();
   const [isDragging, setIsDragging] = useState(false);
-  // Новое состояние для хранения режима перетаскивания (выбрать или отменить выбор)
   const [dragMode, setDragMode] = useState<'select' | 'deselect' | null>(null);
+  const lastHandEnteredRef = useRef<string | null>(null);
+  // Initialize zoomLevel to 0.85 (15% reduction) for desktop, 1 for mobile
+  const [zoomLevel, setZoomLevel] = useState<number>(isMobile ? 1 : 0.85);
 
-  // Добавляем глобальный слушатель mouseup, чтобы остановить перетаскивание, даже если мышь покидает матрицу
+  const handleDragEnd = () => {
+    setIsDragging(false);
+    setDragMode(null);
+    lastHandEnteredRef.current = null;
+  };
+
   useEffect(() => {
-    const handleMouseUp = () => {
-      setIsDragging(false);
-      setDragMode(null); // Сбрасываем режим перетаскивания при отпускании кнопки мыши
-    };
-
-    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('mouseup', handleDragEnd);
+    window.addEventListener('touchend', handleDragEnd);
+    window.addEventListener('touchcancel', handleDragEnd);
 
     return () => {
-      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('mouseup', handleDragEnd);
+      window.removeEventListener('touchend', handleDragEnd);
+      window.removeEventListener('touchcancel', handleDragEnd);
     };
   }, []);
 
   const handleMouseDown = (hand: string) => {
     if (readOnly) return;
     setIsDragging(true);
+    lastHandEnteredRef.current = hand;
 
-    // Определяем режим перетаскивания на основе начального состояния руки
     const currentHandAction = selectedHands[hand];
-    let mode: 'select' | 'deselect';
-
-    // Если рука в данный момент выбрана с активным действием, режим — 'deselect'.
-    // В противном случае (это 'fold', undefined или другое действие), режим — 'select'.
-    if (currentHandAction === activeAction) {
-      mode = 'deselect';
-    } else {
-      mode = 'select';
-    }
-    setDragMode(mode); // Устанавливаем определенный режим
-    onHandSelect(hand, mode); // Применяем действие к начальной руке
+    const mode = currentHandAction === activeAction ? 'deselect' : 'select';
+    
+    setDragMode(mode);
+    onHandSelect(hand, mode);
   };
 
   const handleMouseEnter = (hand: string) => {
-    if (readOnly) return;
-    if (isDragging && dragMode) { // Применяем только при перетаскивании и установленном режиме
-      onHandSelect(hand, dragMode); // Применяем действие на основе определенного режима
+    if (readOnly || !isDragging || !dragMode) return;
+    
+    if (lastHandEnteredRef.current !== hand) {
+      onHandSelect(hand, dragMode);
+      lastHandEnteredRef.current = hand;
+    }
+  };
+
+  const handleTouchMove = (event: React.TouchEvent<HTMLDivElement>) => {
+    if (!isDragging) return;
+    event.preventDefault();
+
+    const touch = event.touches[0];
+    const element = document.elementFromPoint(touch.clientX, touch.clientY);
+
+    if (element instanceof HTMLElement && element.dataset.hand) {
+      const hand = element.dataset.hand;
+      handleMouseEnter(hand);
     }
   };
 
@@ -95,33 +117,74 @@ export const PokerMatrix = ({ selectedHands, onHandSelect, activeAction, actionB
     return button ? { backgroundColor: button.color, color: 'white' } : {};
   };
 
+  const parentContainerClasses = cn(
+    "space-y-4",
+    isMobile ? "w-full !px-0" : "w-[120%]" // Added !px-0 for mobile to remove padding
+  );
+  
+  const gridClasses = cn(
+    "grid grid-cols-13 aspect-square w-full select-none rounded-lg",
+    isMobile ? "gap-0.5 sm:gap-1" : "gap-2 p-6 border" // Removed border for mobile
+  );
+  
+  const buttonClasses = cn(
+    "w-full h-full aspect-square font-mono border transition-all duration-200",
+    "hover:ring-2 hover:ring-ring",
+    "rounded-sm md:rounded-md",
+    isMobile ? "text-[clamp(0.625rem,1.5vw,0.875rem)] p-0" : "text-[clamp(0.75rem,1.8vw,1.05rem)] p-1"
+  );
+
+  const matrixContent = (
+    <div
+      className={gridClasses}
+      onTouchMove={handleTouchMove}
+    >
+      {HANDS.map((row, rowIndex) => 
+        row.map((hand, colIndex) => (
+          <Button
+            key={`${rowIndex}-${colIndex}`}
+            data-hand={hand}
+            variant="outline"
+            size="sm"
+            className={cn(
+              buttonClasses,
+              getHandColor(hand)
+            )}
+            style={getHandStyle(hand)}
+            onMouseDown={() => handleMouseDown(hand)}
+            onMouseEnter={() => handleMouseEnter(hand)}
+            onTouchStart={(e) => {
+              e.preventDefault();
+              handleMouseDown(hand);
+            }}
+            disabled={readOnly}
+          >
+            {hand}
+          </Button>
+        ))
+      )}
+    </div>
+  );
+
   return (
-    <div className="space-y-4">
-      <div
-        className="grid grid-cols-13 gap-1 bg-card p-2 sm:p-4 rounded-lg border relative aspect-square w-full lg:w-[63%] select-none" // Added select-none for better UX
-      >
-        {HANDS.map((row, rowIndex) => 
-          row.map((hand, colIndex) => (
-            <Button
-              key={`${rowIndex}-${colIndex}`}
-              variant="outline"
-              size="sm"
-              className={cn(
-                "w-full h-full aspect-square p-0 font-mono border transition-all duration-200",
-                "text-[clamp(0.625rem,1.5vw,0.875rem)]", // Smoothly scales font from 10px to 14px based on viewport width
-                getHandColor(hand),
-                "hover:ring-2 hover:ring-ring"
-              )}
-              style={getHandStyle(hand)}
-              onMouseDown={() => handleMouseDown(hand)}
-              onMouseEnter={() => handleMouseEnter(hand)}
-              disabled={readOnly}
-            >
-              {hand}
-            </Button>
-          ))
-        )}
-      </div>
+    <div className={parentContainerClasses}>
+      {isMobile ? (
+        // Mobile: Render directly without scale wrapper
+        matrixContent
+      ) : (
+        // Desktop: Render with scale wrapper and zoom buttons
+        <div
+          className="relative w-full"
+          style={{ transform: `scale(${zoomLevel})`, transformOrigin: 'top left' }}
+        >
+          {matrixContent}
+          <div className="absolute -bottom-6 left-0 flex gap-1">
+            <Button variant="outline" size="sm" className="h-5 w-10 text-xs" onClick={() => setZoomLevel(0.85)}>x1</Button>
+            <Button variant="outline" size="sm" className="h-5 w-10 text-xs" onClick={() => setZoomLevel(1.0)}>x1.2</Button>
+            <Button variant="outline" size="sm" className="h-5 w-10 text-xs" onClick={() => setZoomLevel(1.2)}>x1.5</Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

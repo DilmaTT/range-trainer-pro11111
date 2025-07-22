@@ -4,88 +4,82 @@ import { Navigation } from "@/components/Navigation";
 import { UserMenu } from "@/components/UserMenu";
 import { RangeEditor } from "@/components/RangeEditor";
 import { Training } from "@/components/Training";
-import { Library }
- from "@/components/Library";
+import { Library } from "@/components/Library";
 import { Button } from "@/components/ui/button";
-import { Toggle } from "@/components/ui/toggle";
 import { Monitor, Smartphone } from "lucide-react";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { cn } from "@/lib/utils";
 
 const Index = () => {
   const [activeSection, setActiveSection] = useState<'editor' | 'training' | 'library'>('editor');
-  const [forceMobile, setForceMobile] = useState(false);
+  const [forcedLayout, setForcedLayout] = useState<'desktop' | null>(null);
+  const [forceMobileOnDesktop, setForceMobileOnDesktop] = useState(false);
   const isMobileDevice = useIsMobile();
-  const isMobileMode = forceMobile || isMobileDevice;
+
+  // Updated logic to allow forcing mobile view on desktop
+  const isMobileLayout = (isMobileDevice && forcedLayout !== 'desktop') || (!isMobileDevice && forceMobileOnDesktop);
 
   const renderSection = () => {
     switch (activeSection) {
       case 'editor':
-        return <RangeEditor isMobileMode={isMobileMode} />;
+        return <RangeEditor isMobileMode={isMobileLayout} />;
       case 'training':
-        return <Training isMobileMode={isMobileMode} />;
+        return <Training isMobileMode={isMobileLayout} />;
       case 'library':
-        return <Library isMobileMode={isMobileMode} />;
+        return <Library isMobileMode={isMobileLayout} />;
       default:
-        return <RangeEditor isMobileMode={isMobileMode} />;
+        return <RangeEditor isMobileMode={isMobileLayout} />;
     }
   };
 
-  const mobileHeaderActions = (
-    <div className="flex items-center gap-2 ml-auto"> {/* Added ml-auto to push to right */}
-      {/* Version Switch Toggles */}
-      <Toggle
-        variant="outline"
-        size="sm"
-        pressed={isMobileMode}
-        onPressedChange={() => setForceMobile(true)}
-        className={cn(
-          "flex items-center justify-center",
-          isMobileMode ? "opacity-100" : "opacity-50",
-          isMobileMode && "h-10" // Уменьшаем высоту для мобильного режима
-        )}
-      >
-        <Smartphone className="h-4 w-4" />
-      </Toggle>
-      <Toggle
-        variant="outline"
-        size="sm"
-        pressed={!isMobileMode}
-        onPressedChange={() => setForceMobile(false)}
-        className={cn(
-          "flex items-center justify-center",
-          !isMobileMode ? "opacity-100" : "opacity-50",
-          isMobileMode && "h-10" // Уменьшаем высоту для мобильного режима
-        )}
-      >
+  // This button is now rendered on all devices
+  const LayoutToggleButton = (
+    <Button
+      variant="outline"
+      size="sm"
+      onClick={() => {
+        if (isMobileDevice) {
+          setForcedLayout(forcedLayout === 'desktop' ? null : 'desktop');
+        } else {
+          setForceMobileOnDesktop(!forceMobileOnDesktop);
+        }
+      }}
+      className="flex items-center justify-center h-10 w-10 p-0"
+    >
+      {isMobileLayout ? (
         <Monitor className="h-4 w-4" />
-      </Toggle>
-      <UserMenu isMobileMode={isMobileMode} />
+      ) : (
+        <Smartphone className="h-4 w-4" />
+      )}
+    </Button>
+  );
+
+  const mobileHeaderActions = (
+    <div className="flex items-center gap-2 ml-auto">
+      {LayoutToggleButton}
+      <UserMenu isMobileMode={isMobileLayout} />
     </div>
   );
 
   return (
     <div className="min-h-screen bg-background">
-      {!isMobileMode ? (
+      {!isMobileLayout ? (
         // Desktop Layout
         <>
-          <div className="p-4 border-b bg-card">
-            <div className="max-w-7xl mx-auto flex items-center justify-between">
-              <div className="flex items-center gap-4">
-                <Navigation 
-                  activeSection={activeSection} 
-                  onSectionChange={setActiveSection} 
+          <div className="py-1 border-b bg-card">
+            <div className="flex items-center"> {/* Main header flex container */}
+              {/* Left section: aligns with sidebar content */}
+              <div className="w-80 flex-shrink-0 pl-4"> {/* w-80 for sidebar width, pl-4 for content alignment */}
+                <Navigation
+                  activeSection={activeSection}
+                  onSectionChange={setActiveSection}
                 />
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setForceMobile(!forceMobile)}
-                  className="flex items-center gap-2"
-                >
-                  <Smartphone className="h-4 w-4" />
-                  Мобильный режим
-                </Button>
-                <UserMenu isMobileMode={isMobileMode} />
+              </div>
+              {/* Right section: takes remaining space, aligns user menu to right */}
+              <div className="flex-1 flex items-center justify-end pr-4"> {/* pr-4 for consistent right padding */}
+                <div className="flex items-center gap-2">
+                  {LayoutToggleButton}
+                  <UserMenu isMobileMode={isMobileLayout} />
+                </div>
               </div>
             </div>
           </div>
@@ -94,13 +88,13 @@ const Index = () => {
       ) : (
         // Mobile Layout
         <div className="min-h-screen bg-background flex flex-col">
-          <div className="px-4 border-b bg-card"> {/* Changed p-4 to px-4 */}
+          <div className="px-4 border-b bg-card">
             <div className="flex items-center justify-between">
-              <Navigation 
-                activeSection={activeSection} 
+              <Navigation
+                activeSection={activeSection}
                 onSectionChange={setActiveSection}
                 isMobile={true}
-                mobileActions={mobileHeaderActions} // Pass mobile actions here
+                mobileActions={mobileHeaderActions}
               />
             </div>
           </div>

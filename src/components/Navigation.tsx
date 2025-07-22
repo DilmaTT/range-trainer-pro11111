@@ -1,12 +1,12 @@
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import React from "react"; // Import React
+import React from "react";
 
 interface NavigationProps {
   activeSection: 'editor' | 'training' | 'library';
   onSectionChange: (section: 'editor' | 'training' | 'library') => void;
   isMobile?: boolean;
-  mobileActions?: React.ReactNode; // New prop for mobile actions
+  mobileActions?: React.ReactNode;
 }
 
 export const Navigation = ({ activeSection, onSectionChange, isMobile = false, mobileActions }: NavigationProps) => {
@@ -18,7 +18,10 @@ export const Navigation = ({ activeSection, onSectionChange, isMobile = false, m
 
   const content = (
     <>
-      <div className="flex items-center gap-1"> {/* Wrap buttons in a div for consistent spacing */}
+      <div className={cn(
+        "flex items-center",
+        isMobile ? "gap-0" : "gap-1"
+      )}>
         {sections.map((section) => (
           <Button
             key={section.id}
@@ -27,25 +30,19 @@ export const Navigation = ({ activeSection, onSectionChange, isMobile = false, m
             onClick={() => onSectionChange(section.id)}
             className={cn(
               "transition-all duration-200",
-              activeSection === section.id && "shadow-md",
-              isMobile && "h-10" // Уменьшаем высоту для мобильного режима
+              activeSection === section.id && "shadow-md"
             )}
           >
             {section.label}
           </Button>
         ))}
       </div>
-      {isMobile && mobileActions} {/* Render mobile actions if in mobile mode */}
+      {isMobile && mobileActions}
     </>
   );
 
-  if (isMobile) {
-    return content; // Directly return content without the nav wrapper for mobile
-  }
-
-  return (
-    <nav className="flex items-center gap-1 bg-card border w-full"> {/* Removed p-1 and rounded-lg */}
-      {content}
-    </nav>
-  );
+  // The <nav> wrapper is removed for both mobile and desktop views.
+  // This removes the container's background, border, and allows the parent
+  // component to control alignment, fulfilling the request.
+  return content;
 };
